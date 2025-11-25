@@ -1,27 +1,73 @@
-OS environment: macOS
+# On the Detectability of LLM-generated Judgments
 
-Run the following commands to set up project:  
-python3 -m venv venv  
-source venv/bin/activate  
-pip install -r requirements.txt  
+**OS environment:** macOS
 
-Run the following command to run the base detector implementation:  
-python3 base_detector.py  
+## Setup
 
-Run the following command to run the feature augmentented detector implementation:  
-python3 feature_augmented_detector.py  
+Run the following commands to set up project:
 
-Run the following command to run the group-level detector:  
-python3 group_level_detector.py  
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
 
-Run the following command to run the rating-scale-analysis:  
-python3 rating_scale_analysis_detector.py  
+## Usage
 
-Run the following command to create the group size graph:  
-python3 group_size_graph.py  
+### Base Detector Implementation
 
-Run the following command to create the judgement dimension graph:  
-python3 judgement_dimension_graph.py  
+Run the following command to run the base detector implementation:
 
-Run the following command to create the judgement dimension graph:  
-python3 rating_scale_graph.py  
+```bash
+python3 base_detector.py
+```
+
+### Feature Augmented Detector Implementation
+
+Run the following command to run the feature augmentented detector implementation:
+
+```bash
+python3 feature_augmented_detector.py
+```
+
+### Group-Level Detector
+
+Run the following command to run the group-level detector:
+
+```bash
+python3 group_level_detector.py
+```
+
+### Rating Scale Analysis
+
+Run the following command to run the rating-scale-analysis:
+
+```bash
+python3 rating_scale_analysis_detector.py
+```
+
+## Visualization
+
+### Group Size Graph
+
+Run the following command to create the group size graph:
+
+```bash
+python3 group_size_graph.py
+```
+
+### Judgement Dimension Graph
+
+Run the following command to create the judgement dimension graph:
+
+```bash
+python3 judgement_dimension_graph.py
+```
+
+### Rating Scale Graph
+
+Run the following command to create the judgement dimension graph:
+
+```bash
+python3 rating_scale_graph.py
+```
