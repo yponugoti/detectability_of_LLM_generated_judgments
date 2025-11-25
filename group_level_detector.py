@@ -6,9 +6,9 @@ from sklearn.metrics import accuracy_score, f1_score
 
 datasets = {
     "helpsteer2": ["helpfulness", "correctness", "coherence", "complexity", "verbosity"],
-    # "helpsteer3": ["score"],
-    # "neurips":    ["rating", "confidence", "soundness", "presentation", "contribution"],
-    # "ANTIQUE":    ["ranking"]
+    "helpsteer3": ["score"],
+    "neurips":    ["rating", "confidence", "soundness", "presentation", "contribution"],
+    "ANTIQUE":    ["ranking"]
 }
 
 def load_data(dataset, split, groupSize):
