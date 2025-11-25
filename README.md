@@ -4,6 +4,18 @@
 
 ## Setup
 
+### Download Dataset
+
+First, download the dataset from Google Drive:
+
+[Download Dataset](https://drive.google.com/file/d/1l5TtOPe1azXSZXow1GL9j7nrqMfnqFfU/view)
+
+After downloading:
+1. Extract the downloaded file
+2. Place the `data/` folder in the top-level directory of the project (same level as this README)
+
+### Install Dependencies
+
 Run the following commands to set up project:
 
 ```bash
