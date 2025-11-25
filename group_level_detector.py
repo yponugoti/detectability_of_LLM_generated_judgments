@@ -5,10 +5,10 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, f1_score
 
 datasets = {
-     "helpsteer2": ["helpfulness", "correctness", "coherence", "complexity", "verbosity"],
-     "helpsteer3": ["score"],
-     "neurips":    ["rating", "confidence", "soundness", "presentation", "contribution"],
-     "ANTIQUE":    ["ranking"]
+    "helpsteer2": ["helpfulness", "correctness", "coherence", "complexity", "verbosity"],
+    # "helpsteer3": ["score"],
+    # "neurips":    ["rating", "confidence", "soundness", "presentation", "contribution"],
+    # "ANTIQUE":    ["ranking"]
 }
 
 def load_data(dataset, split, groupSize):
@@ -23,34 +23,35 @@ def load_data(dataset, split, groupSize):
     rows = []
 
     for group in data:
-        row = {}
+        for example in group['examples']:
+            row = {}
+            row['label'] = 1 if example['label'] == "LLM" else 0
+            row['group_id'] = example['group_id']
 
-        row['label'] = 1 if group['label'] == "LLM" else 0
-
-        if dataset == "ANTIQUE":
-            row['query'] = str(group['examples'][0]['query']).strip()
-            row['response1'] = str(group['examples'][0]['docs'][0]).strip()
-            row['response2'] = str(group['examples'][0]['docs'][1]).strip()
-            row['response3'] = str(group['examples'][0]['docs'][2]).strip()
-            for i, rank in enumerate(group['examples'][0]['ranking']):
-                row[f'ranking_{i+1}'] = rank
-        elif dataset == "helpsteer3":
-            row['response1'] = str(group['examples'][0]['response1']).strip()
-            row['response2'] = str(group['examples'][0]['response2']).strip()
-            row['score'] = group['examples'][0]['score']
-        elif dataset == "helpsteer2":
-            row['prompt'] = str(group['examples'][0]['prompt']).strip()
-            row['response'] = str(group['examples'][0]['response']).strip()
-            for dimension in datasets['helpsteer2']:
-                row[f'feat_{dimension}'] = group['examples'][0][dimension]
-        elif dataset == "neurips":
-            content = group['examples'][0]['content']
-            content = "".join(content)
-            row['content'] = str(content).strip()
-            for dimension in datasets['neurips']:
-                row[f'feat_{dimension}'] = group['examples'][0][dimension]
+            if dataset == "ANTIQUE":
+                row['query'] = str(example['query']).strip()
+                row['response1'] = str(example['docs'][0]).strip()
+                row['response2'] = str(example['docs'][1]).strip()
+                row['response3'] = str(example['docs'][2]).strip()
+                for i, rank in enumerate(example['ranking']):
+                    row[f'ranking_{i+1}'] = rank
+            elif dataset == "helpsteer3":
+                row['response1'] = str(example['response1']).strip()
+                row['response2'] = str(example['response2']).strip()
+                row['score'] = example['score']
+            elif dataset == "helpsteer2":
+                row['prompt'] = str(example['prompt']).strip()
+                row['response'] = str(example['response']).strip()
+                for dimension in datasets['helpsteer2']:
+                    row[f'feat_{dimension}'] = example[dimension]
+            elif dataset == "neurips":
+                content = example['content']
+                content = "".join(content)
+                row['content'] = str(content).strip()
+                for dimension in datasets['neurips']:
+                    row[f'feat_{dimension}'] = example[dimension]
         
-        rows.append(row)
+            rows.append(row)
     
     return pd.DataFrame(rows)
 
@@ -143,10 +144,20 @@ def train_and_evaluate(X_train, y_train, X_test, y_test):
     classifier = RandomForestClassifier(n_estimators=100, random_state=42)
     classifier.fit(X_train, y_train)
     
-    y_pred = classifier.predict(X_test)
+    y_pred = classifier.predict_proba(X_test)[:, 1]
 
-    accuracy = accuracy_score(y_test, y_pred)
-    f1 = f1_score(y_test, y_pred)
+    df = y_test[['group_id', 'label']].copy()
+    df['prob_llm'] = y_pred
+
+    group_aggregation = df.groupby('group_id').agg({
+        "label": 'first',
+        "prob_llm": 'mean'
+    }).reset_index()
+
+    group_aggregation['final_pred'] = (group_aggregation['prob_llm'] >= 0.5).astype(int)
+
+    accuracy = accuracy_score(group_aggregation['label'], group_aggregation['final_pred'])
+    f1 = f1_score(group_aggregation['label'], group_aggregation['final_pred'])
 
     return accuracy, f1
 
@@ -156,9 +167,6 @@ if __name__ == "__main__":
     f1_scores = []
 
     for dataset in datasets.keys():
-        X_train_base = load_data(dataset, "train", 1)
-        X_test_base = load_data(dataset, "test", 1)
-
         X_train_ling = load_linguistic_features(dataset, "train")
         X_test_ling = load_linguistic_features(dataset, "test")
 
@@ -174,29 +182,33 @@ if __name__ == "__main__":
         elif dataset == "neurips":
             merge_on = ['content']
 
-        train_merged = pd.merge(X_train_base, X_train_ling, on=merge_on, how='inner')
-        train_merged = pd.merge(train_merged, df_llm_train, on=merge_on, how='inner')
-        test_merged = pd.merge(X_test_base, X_test_ling, on=merge_on, how='inner')
-        test_merged = pd.merge(test_merged, df_llm_test, on=merge_on, how='inner')
+        for groupSize in [1, 2, 4, 8, 16]:
+            X_train_base = load_data(dataset, "train", groupSize)
+            X_test_base = load_data(dataset, "test", groupSize)
 
-        y_train = train_merged['label'].values
-        y_test = test_merged['label'].values
+            train_merged = pd.merge(X_train_base, X_train_ling, on=merge_on, how='inner')
+            train_merged = pd.merge(train_merged, df_llm_train, on=merge_on, how='inner')
+            test_merged = pd.merge(X_test_base, X_test_ling, on=merge_on, how='inner')
+            test_merged = pd.merge(test_merged, df_llm_test, on=merge_on, how='inner')
 
-        metadata_cols = ["query", "response", "response1", "response2", "response3", 
-                         "prompt", "content", "context", "ranking", "label", "group_id"]
+            y_train = train_merged['label'].values
+            y_test = test_merged['label'].values
 
-        X_train_aug = train_merged.drop(columns=[c for c in train_merged.columns if c in metadata_cols], errors='ignore').select_dtypes(include=[np.number]).values
-        X_test_aug = test_merged.drop(columns=[c for c in test_merged.columns if c in metadata_cols], errors='ignore').select_dtypes(include=[np.number]).values
+            metadata_cols = ["query", "response", "response1", "response2", "response3", 
+                            "prompt", "content", "context", "ranking", "label", "group_id"]
 
-        accuracy, f1 = train_and_evaluate(X_train_aug, y_train, X_test_aug, y_test)
+            X_train_aug = train_merged.drop(columns=[c for c in train_merged.columns if c in metadata_cols], errors='ignore').select_dtypes(include=[np.number]).values
+            X_test_aug = test_merged.drop(columns=[c for c in test_merged.columns if c in metadata_cols], errors='ignore').select_dtypes(include=[np.number]).values
 
-        accuracy_scores.append(accuracy)
-        f1_scores.append(f1)
+            accuracy, f1 = train_and_evaluate(X_train_aug, y_train, X_test_aug, test_merged)
 
-        print(f"Dataset: {dataset}")
-        print(f"Accuracy: {accuracy:.4f}")
-        print(f"F1 Score: {f1:.4f}")
-        print("-" * 30)
+            accuracy_scores.append(accuracy)
+            f1_scores.append(f1)
+
+            print(f"Dataset: {dataset} of size {groupSize}")
+            print(f"Accuracy: {accuracy:.4f}")
+            print(f"F1 Score: {f1:.4f}")
+            print("-" * 30)
     
     print("Overall Performance:")
     print(f"Average Accuracy: {np.mean(accuracy_scores)}")
